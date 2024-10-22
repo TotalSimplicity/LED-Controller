@@ -102,8 +102,7 @@ void stripRandColorWipe(int wait) {
     
     wipeIndex++;
     if (wipeIndex-1 >= EARNUMPIXELS) {
-      wipeIndex = 0;  // Reset wipeIndex after completing the wipe
-      // Generate a new random color after a full cycle
+      wipeIndex = 0;
       uint8_t r = random(0, 256);
       uint8_t g = random(0, 256);
       uint8_t b = random(0, 256);
@@ -261,19 +260,19 @@ void setup() {
 
 void handleStripEffects(){
   if (stripSelectedEffect == "rainbow" ) {
-    stripRainbowCycle(20);  // Non-blocking rainbow effect
+    stripRainbowCycle(20);
   } 
   else if (stripSelectedEffect == "randColorWipe") {
-    stripRandColorWipe(50);  // Non-blocking color wipe
+    stripRandColorWipe(50);
   } 
   else if (stripSelectedEffect == "colorWipe") {
-    stripColorWipe(rEar.Color(0, 0, 255), rEar.Color(0, 255, 0), 50);  // Non-blocking color wipe
+    stripColorWipe(rEar.Color(0, 0, 255), rEar.Color(0, 255, 0), 50);
   } 
   else if (stripSelectedEffect == "breathing") {
-    stripBreathingEffect(rEar.Color(0, 0, 255), 20);  // Non-blocking breathing effect
+    stripBreathingEffect(rEar.Color(0, 0, 255), 20);
   }
 }
 void loop() {
-  server.handleClient();  // Keep handling web requests
+  server.handleClient();
   if (!stripIsColor) {handleStripEffects();}
 }
