@@ -198,34 +198,34 @@ void handle_matrixSetText(AsyncWebServerRequest *request) {
 
   redirToMain(request); 
 }
-
+const char htmlPage[] PROGMEM = R"rawliteral(<h2>Helmet LED Control</h2>
+                    <br><p>LED Strip Control</p>
+                    <form action="/stripSetColor" method="get">
+                    <label for="color">Choose strip color:</label>
+                    <input type="color" id="color" name="color" value="#ff0000">
+                    <input type="submit" value="Set Color">
+                    </form>
+                    <form action="/stripSetEffect" method="get">
+                    <label for="effect">Choose strip effect:</label>
+                    <select id="effect" name="effect">
+                    <option value="rainbow">Rainbow</option>
+                    <option value="randColorWipe">Rand Color Wipe</option>
+                    <option value="colorWipe">Color Wipe</option>
+                    <option value="breathing">Breathing</option>
+                    </select>
+                    <input type="submit" value="Set Effect">
+                    </form>
+                    <br><p>LED Matrix Control</p>
+                    <form action="/matrixSetText" method="get">
+                    <label for="text">Enter matrix text:</label>
+                    <input type="text" id="text" name="text" value="Hello!">
+                    <label for="color">Choose text color:</label>
+                    <input type="color" id="color" name="color" value="#00ff00">
+                    <input type="submit" value="Set Matrix Text & Color">
+                    </form>)rawliteral";
+                    
 void handle_OnConnect(AsyncWebServerRequest *request) {
-  String htmlPage = "<h2>Helmet LED Control</h2>"
-                    "<br><p>LED Strip Control</p>"
-                    "<form action=\"/stripSetColor\" method=\"get\">"
-                    "<label for=\"color\">Choose strip color:</label>"
-                    "<input type=\"color\" id=\"color\" name=\"color\" value=\"#ff0000\">"
-                    "<input type=\"submit\" value=\"Set Color\">"
-                    "</form>"
-                    "<form action=\"/stripSetEffect\" method=\"get\">"
-                    "<label for=\"effect\">Choose strip effect:</label>"
-                    "<select id=\"effect\" name=\"effect\">"
-                    "<option value=\"rainbow\">Rainbow</option>"
-                    "<option value=\"randColorWipe\">Rand Color Wipe</option>"
-                    "<option value=\"colorWipe\">Color Wipe</option>"
-                    "<option value=\"breathing\">Breathing</option>"
-                    "</select>"
-                    "<input type=\"submit\" value=\"Set Effect\">"
-                    "</form>"
-                    "<br><p>LED Matrix Control</p>"
-                    "<form action=\"/matrixSetText\" method=\"get\">"
-                    "<label for=\"text\">Enter matrix text:</label>"
-                    "<input type=\"text\" id=\"text\" name=\"text\" value=\"Hello!\">"
-                    "<label for=\"color\">Choose text color:</label>"
-                    "<input type=\"color\" id=\"color\" name=\"color\" value=\"#00ff00\">"
-                    "<input type=\"submit\" value=\"Set Matrix Text & Color\">"
-                    "</form>";
-  request->send(200, "text/html", htmlPage);
+  request->send(200, "text/html", FPSTR(htmlPage));
 }
 
 void setup() {
