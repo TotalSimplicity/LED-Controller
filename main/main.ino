@@ -181,14 +181,15 @@ void handle_stripSetColor(AsyncWebServerRequest *request) {
 
 void handle_matrixSetText(AsyncWebServerRequest *request) {
   String text = request->arg("text");
-  String colorStr = request->arg("color");
+  String colorStr = request->arg("textColor");
 
   uint32_t color = strtol(colorStr.substring(1).c_str(), NULL, 16);
   uint8_t red = (color >> 16) & 0xFF;
   uint8_t green = (color >> 8) & 0xFF;
   uint8_t blue = color & 0xFF;
 
-  Serial.printf("Received matrix text: %s, Color: #%02x%02x%02x\n", text.c_str(), red, green, blue);
+  Serial.printf("Received matrix text: %s, Color: R=%d, G=%d, B=%d\n", text.c_str(), (int)red, (int)green, (int)blue);
+
 
   matrix.fillScreen(0);
   matrix.setCursor(0, 0);
@@ -198,32 +199,151 @@ void handle_matrixSetText(AsyncWebServerRequest *request) {
 
   redirToMain(request); 
 }
-const char htmlPage[] PROGMEM = R"rawliteral(<h2>Helmet LED Control</h2>
-                    <br><p>LED Strip Control</p>
-                    <form action="/stripSetColor" method="get">
-                    <label for="color">Choose strip color:</label>
-                    <input type="color" id="color" name="color" value="#ff0000">
-                    <input type="submit" value="Set Color">
-                    </form>
-                    <form action="/stripSetEffect" method="get">
-                    <label for="effect">Choose strip effect:</label>
+const char htmlPage[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helmet LED Control</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            width: 300px;
+        }
+
+        h2 {
+            color: #4a90e2;
+        }
+
+        p {
+            color: #333333;
+        }
+
+        .form-section {
+            background-color: #e0f7fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            width: 100%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            margin: 10px 0 5px;
+            display: block;
+        }
+
+        .option-group {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        input[type="color"],
+        input[type="text"],
+        select {
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 48%;
+            box-sizing: border-box;
+        }
+
+        input[type="submit"] {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 10px;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Helmet LED Control</h2>
+        <p>LED Strip Control</p>
+        <div class="form-section">
+            
+            <form action="/stripSetColor" method="get">
+                <label for="color">Choose strip color:</label>
+                <div class="option-group">
+                    <input type="color" id="color" name="color" value="#00d5ff">
+                </div>
+                <input type="submit" value="Set Color">
+            </form>
+        </div>
+
+        <div class="form-section">
+            <form action="/stripSetEffect" method="get">
+                <label for="effect">Choose strip effect:</label>
+                <div class="option-group">
                     <select id="effect" name="effect">
-                    <option value="rainbow">Rainbow</option>
-                    <option value="randColorWipe">Rand Color Wipe</option>
-                    <option value="colorWipe">Color Wipe</option>
-                    <option value="breathing">Breathing</option>
+                        <option value="rainbow">Rainbow</option>
+                        <option value="randColorWipe">Rand Color Wipe</option>
+                        <option value="colorWipe">Color Wipe</option>
+                        <option value="breathing">Breathing</option>
                     </select>
-                    <input type="submit" value="Set Effect">
-                    </form>
-                    <br><p>LED Matrix Control</p>
-                    <form action="/matrixSetText" method="get">
-                    <label for="text">Enter matrix text:</label>
-                    <input type="text" id="text" name="text" value="Hello!">
-                    <label for="color">Choose text color:</label>
-                    <input type="color" id="color" name="color" value="#00ff00">
-                    <input type="submit" value="Set Matrix Text & Color">
-                    </form>)rawliteral";
-                    
+                </div>
+                <input type="submit" value="Set Effect">
+            </form>
+        </div>
+        <p>LED Matrix Control</p>
+        <div class="form-section">
+            
+            <form action="/matrixSetText" method="get">
+                <label for="text">Custom matrix text:</label>
+                <div class="option-group">
+                    <input type="text" id="text" name="text" placeholder="text">
+                    <input type="color" id="textColor" name="textColor" value="#00d5ff">
+                </div>
+                <input type="submit" value="Set Matrix Text & Color">
+            </form>
+        </div>
+
+        <div class="form-section">
+            <form action="/matrixSetText" method="get">
+                <label for="presetText">Choose matrix text preset:</label>
+                <div class="option-group">
+                    <select id="text" name="text">
+                        <option value="preset1">preset1</option>
+                        <option value="preset2">preset2</option>
+                        <option value="preset3">preset3</option>
+                        <option value="preset4">preset4</option>
+                    </select>
+                    <input type="color" id="textColor" name="textColor" value="#00d5ff">
+                </div>
+                <input type="submit" value="Set Matrix Preset & Color">
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+
+  )rawliteral";
+
 void handle_OnConnect(AsyncWebServerRequest *request) {
   request->send(200, "text/html", FPSTR(htmlPage));
 }
