@@ -1,5 +1,6 @@
 #include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoMatrix.h>
 #include <Adafruit_NeoPixel.h>
@@ -18,7 +19,7 @@ IPAddress local_ip(192,168,1,1);
 IPAddress gateway(192,168,1,1);
 IPAddress subnet(255,255,255,0);
 
-ESP8266WebServer server(80);
+AsyncWebServer server(80);
 
 #define MATRIXPIN 4
 #define lEarPIN 5
@@ -33,7 +34,6 @@ Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(32, 8, MATRIXPIN,
 Adafruit_NeoPixel lEar(EARNUMPIXELS, lEarPIN, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel rEar(EARNUMPIXELS, rEarPIN, NEO_GRB + NEO_KHZ800);
 
-
 unsigned long previousMillis = 0;
 unsigned long previousMillisColorWipe = 0;
 unsigned long previousMillisBreathing = 0;
@@ -47,12 +47,12 @@ String stripSelectedEffect = "";
 bool stripIsColor = true;
 bool colorWipeSecondColor = false;
 
-void redirToMain(){
-  server.sendHeader("Location", "/", true); 
-  server.send(302, "text/plain", "");
+void redirToMain(AsyncWebServerRequest *request){
+  request->redirect("/");
 }
 
 void stripSolidColor(uint32_t color){}
+
 void stripRainbowCycle(int wait) {
   unsigned long currentMillis = millis();
 
@@ -84,7 +84,6 @@ uint32_t Wheel(byte WheelPos) {
   WheelPos -= 170;
   return rEar.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
 }
-
 
 void stripRandColorWipe(int wait) {
   unsigned long currentMillis = millis();
@@ -130,7 +129,6 @@ void stripColorWipe(uint32_t color1, uint32_t color2, int wait) {
   }
 }
 
-
 void stripBreathingEffect(uint32_t color, int fadeSpeed) {
   unsigned long currentMillis = millis();
 
@@ -154,15 +152,14 @@ void stripBreathingEffect(uint32_t color, int fadeSpeed) {
   }
 }
 
-
-void handle_stripSetEffect() {
-  stripSelectedEffect = server.arg("effect");
+void handle_stripSetEffect(AsyncWebServerRequest *request) {
+  stripSelectedEffect = request->arg("effect");
   stripIsColor = false;
-  redirToMain();
+  redirToMain(request);
 }
 
-void handle_stripSetColor() {
-  String colorStr = server.arg("color");
+void handle_stripSetColor(AsyncWebServerRequest *request) {
+  String colorStr = request->arg("color");
   stripIsColor = true;
   uint32_t color = strtol(colorStr.substring(1).c_str(), NULL, 16);
   uint8_t red = (color >> 16) & 0xFF;
@@ -179,13 +176,12 @@ void handle_stripSetColor() {
   }
   rEar.show();
   lEar.show();
-  redirToMain();
+  redirToMain(request);
 }
 
-
-void handle_matrixSetText() {
-  String text = server.arg("text");
-  String colorStr = server.arg("color");
+void handle_matrixSetText(AsyncWebServerRequest *request) {
+  String text = request->arg("text");
+  String colorStr = request->arg("color");
 
   uint32_t color = strtol(colorStr.substring(1).c_str(), NULL, 16);
   uint8_t red = (color >> 16) & 0xFF;
@@ -200,10 +196,10 @@ void handle_matrixSetText() {
   matrix.print(text);
   matrix.show();
 
-  redirToMain(); 
+  redirToMain(request); 
 }
 
-void handle_OnConnect() {
+void handle_OnConnect(AsyncWebServerRequest *request) {
   String htmlPage = "<h2>Helmet LED Control</h2>"
                     "<br><p>LED Strip Control</p>"
                     "<form action=\"/stripSetColor\" method=\"get\">"
@@ -229,19 +225,21 @@ void handle_OnConnect() {
                     "<input type=\"color\" id=\"color\" name=\"color\" value=\"#00ff00\">"
                     "<input type=\"submit\" value=\"Set Matrix Text & Color\">"
                     "</form>";
-  server.send(200, "text/html", htmlPage);
+  request->send(200, "text/html", htmlPage);
 }
 
 void setup() {
   Serial.begin(115200);
-  WiFi.softAP(ssid, password);
+  ESP.eraseConfig();
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ssid, password, 6, false, 2);
   WiFi.softAPConfig(local_ip, gateway, subnet);
   delay(100); 
   
-  server.on("/", handle_OnConnect);
-  server.on("/matrixSetText", handle_matrixSetText);
-  server.on("/stripSetEffect", handle_stripSetEffect);
-  server.on("/stripSetColor", handle_stripSetColor);
+  server.on("/", HTTP_GET, handle_OnConnect);
+  server.on("/matrixSetText", HTTP_GET, handle_matrixSetText);
+  server.on("/stripSetEffect", HTTP_GET, handle_stripSetEffect);
+  server.on("/stripSetColor", HTTP_GET, handle_stripSetColor);
   
   server.begin();
   Serial.println("HTTP server started");
@@ -258,21 +256,20 @@ void setup() {
   Serial.println("Ears initialized");
 }
 
-void handleStripEffects(){
-  if (stripSelectedEffect == "rainbow" ) {
+void handleStripEffects() {
+  if (stripSelectedEffect == "rainbow") {
     stripRainbowCycle(20);
-  } 
-  else if (stripSelectedEffect == "randColorWipe") {
+  } else if (stripSelectedEffect == "randColorWipe") {
     stripRandColorWipe(50);
-  } 
-  else if (stripSelectedEffect == "colorWipe") {
+  } else if (stripSelectedEffect == "colorWipe") {
     stripColorWipe(rEar.Color(0, 0, 255), rEar.Color(0, 255, 0), 50);
-  } 
-  else if (stripSelectedEffect == "breathing") {
+  } else if (stripSelectedEffect == "breathing") {
     stripBreathingEffect(rEar.Color(0, 0, 255), 20);
   }
 }
+
 void loop() {
-  server.handleClient();
-  if (!stripIsColor) {handleStripEffects();}
+  if (!stripIsColor) {
+    handleStripEffects();
+  }
 }
