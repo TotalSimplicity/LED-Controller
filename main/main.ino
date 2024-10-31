@@ -21,9 +21,9 @@ IPAddress subnet(255,255,255,0);
 
 AsyncWebServer server(80);
 
-#define MATRIXPIN 4
+#define MATRIXPIN 14
 #define lEarPIN 5
-#define rEarPIN 0
+#define rEarPIN 4
 #define EARNUMPIXELS 23
 
 Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(32, 8, MATRIXPIN,
@@ -40,8 +40,14 @@ unsigned long previousMillisBreathing = 0;
 int j = 0;
 int i = 0;
 int wipeIndex = 0;
-int brightness = 0;
+int breathingBrightness = 0;
 int fadeDirection = 1; // 1 to fade in, -1 to fade out
+
+int earBrightness = 150;
+int matrixBrightness = 40;
+
+uint32_t colorWipe1 = rEar.Color(0, 255, 0);
+uint32_t colorWipe2 = rEar.Color(255, 0, 0);
 
 String stripSelectedEffect = "";
 bool stripIsColor = true;
@@ -54,23 +60,30 @@ void redirToMain(AsyncWebServerRequest *request){
 void stripSolidColor(uint32_t color){}
 
 void stripRainbowCycle(int wait) {
-  unsigned long currentMillis = millis();
+    unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis >= wait) {
-    previousMillis = currentMillis;
+    if (currentMillis - previousMillis >= wait) {
+        previousMillis = currentMillis;
 
-    lEar.setPixelColor(i, Wheel(((i * 256 / EARNUMPIXELS) + j) & 255));
-    rEar.setPixelColor(i, Wheel(((i * 256 / EARNUMPIXELS) + j) & 255));
-    i++;
-    if (i >= EARNUMPIXELS) {
-      i = 0;  // Reset i to start again
-      j++;    // Keep j incrementing for continuous rainbow effect
+        // Set each LED color based on its position and the current "j" offset
+        for (int p = 0; p < EARNUMPIXELS; p++) {
+            uint32_t color = Wheel(((p * 256 / EARNUMPIXELS) + j) & 255);
+            lEar.setPixelColor(p, color);
+            rEar.setPixelColor(p, color);
+        }
+
+        // Show updated colors on both ears
+        lEar.show();
+        rEar.show();
+
+        // Increment j to move through the rainbow cycle
+        j = (j + 1) % 256;  // Loop j back to 0 after it completes a cycle
+
+        // Optionally, reset i if needed
+        i = 0;
     }
-
-    lEar.show();
-    rEar.show();
-  }
 }
+
 
 uint32_t Wheel(byte WheelPos) {
   WheelPos = 255 - WheelPos;
@@ -135,8 +148,8 @@ void stripBreathingEffect(uint32_t color, int fadeSpeed) {
   if (currentMillis - previousMillisBreathing >= fadeSpeed) {
     previousMillisBreathing = currentMillis;
  
-    rEar.setBrightness(brightness);
-    lEar.setBrightness(brightness);
+    rEar.setBrightness(breathingBrightness);
+    lEar.setBrightness(breathingBrightness);
     for (int i = 0; i < EARNUMPIXELS; i++) {
       rEar.setPixelColor(i, color);
       lEar.setPixelColor(i, color);
@@ -144,18 +157,30 @@ void stripBreathingEffect(uint32_t color, int fadeSpeed) {
     rEar.show();
     lEar.show();
 
-    brightness += fadeDirection;
+    breathingBrightness += fadeDirection;
 
-    if (brightness <= 0 || brightness >= 255) {
+    if (breathingBrightness <= 0 || breathingBrightness >= 255) {
       fadeDirection = -fadeDirection;  // Reverse direction to continue the cycle
     }
   }
 }
 
 void handle_stripSetEffect(AsyncWebServerRequest *request) {
-  stripSelectedEffect = request->arg("effect");
-  stripIsColor = false;
-  redirToMain(request);
+    stripSelectedEffect = request->arg("effect");
+    stripIsColor = false;
+
+    if (stripSelectedEffect == "colorWipe") {
+        // Retrieve selected colors for Color Wipe effect
+        if (request->hasArg("colorWipe1") && request->hasArg("colorWipe2")) {
+            uint32_t color1 = strtol(request->arg("colorWipe1").substring(1).c_str(), NULL, 16);
+            uint32_t color2 = strtol(request->arg("colorWipe2").substring(1).c_str(), NULL, 16);
+            
+            // Extract RGB components for each color
+            colorWipe1 = rEar.Color((color1 >> 16) & 0xFF, (color1 >> 8) & 0xFF, color1 & 0xFF);
+            colorWipe2 = rEar.Color((color2 >> 16) & 0xFF, (color2 >> 8) & 0xFF, color2 & 0xFF);
+        }
+    }
+    redirToMain(request);
 }
 
 void handle_stripSetColor(AsyncWebServerRequest *request) {
@@ -199,6 +224,26 @@ void handle_matrixSetText(AsyncWebServerRequest *request) {
 
   redirToMain(request); 
 }
+
+void handle_setBrightness(AsyncWebServerRequest *request) {
+    if (request->hasArg("stripBrightness")) {
+        earBrightness = request->arg("stripBrightness").toInt();
+        lEar.setBrightness(earBrightness);
+        rEar.setBrightness(earBrightness);
+        lEar.show();
+        rEar.show();
+    }
+
+    if (request->hasArg("matrixBrightness")) {
+        matrixBrightness = request->arg("matrixBrightness").toInt();
+        matrix.setBrightness(matrixBrightness);
+        matrix.show();
+    }
+
+    Serial.printf("Strip Brightness: %d, Matrix Brightness: %d\n", earBrightness, matrixBrightness);
+    redirToMain(request);
+}
+
 const char htmlPage[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -297,19 +342,40 @@ const char htmlPage[] PROGMEM = R"rawliteral(
         </div>
 
         <div class="form-section">
-            <form action="/stripSetEffect" method="get">
-                <label for="effect">Choose strip effect:</label>
-                <div class="option-group">
-                    <select id="effect" name="effect">
-                        <option value="rainbow">Rainbow</option>
-                        <option value="randColorWipe">Rand Color Wipe</option>
-                        <option value="colorWipe">Color Wipe</option>
-                        <option value="breathing">Breathing</option>
-                    </select>
-                </div>
-                <input type="submit" value="Set Effect">
-            </form>
-        </div>
+          <form action="/stripSetEffect" method="get">
+              <label for="effect">Choose strip effect:</label>
+              <div class="option-group">
+                  <select id="effect" name="effect" onchange="toggleColorWipeColors()">
+                      <option value="rainbow">Rainbow</option>
+                      <option value="randColorWipe">Rand Color Wipe</option>
+                      <option value="colorWipe">Color Wipe</option>
+                      <option value="breathing">Breathing</option>
+                  </select>
+              </div>
+              
+              <!-- Additional Color Inputs for Color Wipe -->
+              <div id="colorWipeColors" style="display: none;">
+                  <label for="colorWipe1">Color Wipe Color 1:</label>
+                  <input type="color" id="colorWipe1" name="colorWipe1" value="#00ff00">
+                  <label for="colorWipe2">Color Wipe Color 2:</label>
+                  <input type="color" id="colorWipe2" name="colorWipe2" value="#ff0000">
+              </div>
+              
+              <input type="submit" value="Set Effect">
+          </form>
+      </div>
+
+      <script>
+          function toggleColorWipeColors() {
+              const effectSelect = document.getElementById("effect");
+              const colorWipeColors = document.getElementById("colorWipeColors");
+              if (effectSelect.value === "colorWipe") {
+                  colorWipeColors.style.display = "block";
+              } else {
+                  colorWipeColors.style.display = "none";
+              }
+          }
+      </script>
         <p>LED Matrix Control</p>
         <div class="form-section">
             
@@ -338,6 +404,26 @@ const char htmlPage[] PROGMEM = R"rawliteral(
                 <input type="submit" value="Set Matrix Preset & Color">
             </form>
         </div>
+        <div class="form-section">
+    <h3>Brightness Controls</h3>
+
+    
+    <form action="/setBrightness" method="get">
+        <label for="stripBrightness">Strip Brightness:</label>
+        <input type="range" id="stripBrightness" name="stripBrightness" min="0" max="255" value="150" oninput="this.nextElementSibling.value = this.value">
+        <output>150</output>
+        <br>
+
+        
+        <label for="matrixBrightness">Matrix Brightness:</label>
+        <input type="range" id="matrixBrightness" name="matrixBrightness" min="0" max="255" value="40" oninput="this.nextElementSibling.value = this.value">
+        <output>40</output>
+        <br>
+        
+        <input type="submit" value="Set Brightness">
+    </form>
+</div>
+
     </div>
 </body>
 </html>
@@ -360,13 +446,15 @@ void setup() {
   server.on("/matrixSetText", HTTP_GET, handle_matrixSetText);
   server.on("/stripSetEffect", HTTP_GET, handle_stripSetEffect);
   server.on("/stripSetColor", HTTP_GET, handle_stripSetColor);
+  server.on("/setBrightness", HTTP_GET, handle_setBrightness);
+
   
   server.begin();
   Serial.println("HTTP server started");
   
   matrix.begin();
   matrix.setTextWrap(false);
-  matrix.setBrightness(40);
+  
   Serial.println("Face initialized");
   
   lEar.begin();
@@ -379,12 +467,18 @@ void setup() {
 void handleStripEffects() {
   if (stripSelectedEffect == "rainbow") {
     stripRainbowCycle(20);
+    rEar.setBrightness(earBrightness);
+    lEar.setBrightness(earBrightness);
   } else if (stripSelectedEffect == "randColorWipe") {
     stripRandColorWipe(50);
+    rEar.setBrightness(earBrightness);
+    lEar.setBrightness(earBrightness);
   } else if (stripSelectedEffect == "colorWipe") {
-    stripColorWipe(rEar.Color(0, 0, 255), rEar.Color(0, 255, 0), 50);
+    stripColorWipe(colorWipe1, colorWipe2, 50);
+    rEar.setBrightness(earBrightness);
+    lEar.setBrightness(earBrightness);
   } else if (stripSelectedEffect == "breathing") {
-    stripBreathingEffect(rEar.Color(0, 0, 255), 20);
+    stripBreathingEffect(rEar.Color(0, 0, 255), 40);
   }
 }
 
@@ -392,4 +486,5 @@ void loop() {
   if (!stripIsColor) {
     handleStripEffects();
   }
+  matrix.setBrightness(matrixBrightness);
 }
